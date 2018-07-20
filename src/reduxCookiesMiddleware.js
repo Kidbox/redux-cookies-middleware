@@ -1,4 +1,5 @@
 import setCookie from './cookieApi';
+import {isFunction} from 'lodash';
 
 /**
  * Middleware to persist state in cookies.
@@ -38,20 +39,31 @@ const reduxCookiesMiddleware = (paths = {}, customOptions = {}) => {
         const result = next(action);
         const nextState = store.getState();
 
-        Object.keys(paths).forEach((pathToState) => {
-            const prevVal = _getVal(prevState, pathToState);
-            const nextVal = _getVal(nextState, pathToState);
-            const state = paths[pathToState];
-            const equalityCheck = state.equalityCheck || options.defaultEqualityCheck;
-            const deleteCheck = state.deleteCheck || options.defaultDeleteCheck;
-
-            if (!equalityCheck(prevVal, nextVal)) {
-                if (deleteCheck(nextVal)) {
-                    options.setCookie(state.name, JSON.stringify(nextVal), 0);
-                } else {
-                    options.setCookie(state.name, JSON.stringify(nextVal));
-                }
+        Object.keys(paths).forEach(pathToState => {
+            let data = [];
+            if (isFunction(paths[pathToState])) {
+                data = paths[pathToState](prevState, nextState);
+            } else {
+                data = [{
+                    prevVal: _getVal(prevState, pathToState),
+                    nextVal: _getVal(nextState, pathToState),
+                    state: paths[pathToState]
+                }];
             }
+
+            data.forEach(item => {
+                const {state, prevVal, nextVal} = item;
+                const equalityCheck = state.equalityCheck || options.defaultEqualityCheck;
+                const deleteCheck = state.deleteCheck || options.defaultDeleteCheck;
+
+                if (!equalityCheck(prevVal, nextVal)) {
+                    if (deleteCheck(nextVal)) {
+                        options.setCookie(state.name, JSON.stringify(nextVal), 0);
+                    } else {
+                        options.setCookie(state.name, JSON.stringify(nextVal));
+                    }
+                }
+            });
         });
 
         return result;
